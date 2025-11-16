@@ -1,0 +1,155 @@
+groups:
+  - name: comfyui_alerts
+    interval: 30s
+    rules:
+      # Service Health Alerts
+      - alert: ServiceDown
+        expr: up{job="comfyui-3d-pack"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "ComfyUI-3D-Pack service is down"
+          description: "Service {{ $labels.instance }} has been down for more than 2 minutes."
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (instance)
+          /
+          sum(rate(http_requests_total[5m])) by (instance)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      # GPU Alerts
+      - alert: CUDANotAvailable
+        expr: cuda_available == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: gpu
+        annotations:
+          summary: "CUDA is not available"
+          description: "CUDA has become unavailable on {{ $labels.instance }}"
+
+      - alert: GPUMemoryHigh
+        expr: |
+          (cuda_memory_allocated_bytes / (16 * 1024 * 1024 * 1024)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: gpu
+        annotations:
+          summary: "GPU memory usage is high"
+          description: "GPU {{ $labels.device }} memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      - alert: GPUMemoryCritical
+        expr: |
+          (cuda_memory_allocated_bytes / (16 * 1024 * 1024 * 1024)) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          component: gpu
+        annotations:
+          summary: "GPU memory usage is critical"
+          description: "GPU {{ $labels.device }} memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}. OOM imminent!"
+
+      # Performance Alerts
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.instance }}"
+
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: |
+          (process_resident_memory_bytes / (32 * 1024 * 1024 * 1024)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # Rate Limiting Alerts
+      - alert: HighRateLimitHits
+        expr: |
+          rate(rate_limit_hits_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: info
+          component: security
+        annotations:
+          summary: "High rate of rate limit hits"
+          description: "Rate limiting is being hit frequently on {{ $labels.instance }}"
+
+      # Container/Pod Alerts (for Kubernetes)
+      - alert: PodRestartingFrequently
+        expr: |
+          rate(kube_pod_container_status_restarts_total{namespace="comfyui-3d-pack"}[15m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Pod is restarting frequently"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting {{ $value }} times per minute"
+
+      - alert: PodNotReady
+        expr: |
+          kube_pod_status_ready{condition="false", namespace="comfyui-3d-pack"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Pod is not ready"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been not ready for 5 minutes"
+
+      # Storage Alerts
+      - alert: HighDiskUsage
+        expr: |
+          (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "Disk space is running low"
+          description: "Only {{ $value | humanizePercentage }} disk space available on {{ $labels.instance }}"
+
+      - alert: CriticalDiskUsage
+        expr: |
+          (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+          component: storage
+        annotations:
+          summary: "Disk space is critically low"
+          description: "Only {{ $value | humanizePercentage }} disk space available on {{ $labels.instance }}. Immediate action required!"

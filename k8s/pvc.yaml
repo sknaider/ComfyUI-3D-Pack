@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-models-pvc
+  namespace: comfyui-3d-pack
+  labels:
+    app: comfyui-3d-pack
+spec:
+  accessModes:
+    - ReadOnlyMany  # Models can be read-only and shared
+  resources:
+    requests:
+      storage: 100Gi  # Adjust based on model requirements
+  storageClassName: fast-ssd  # Use appropriate storage class
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-output-pvc
+  namespace: comfyui-3d-pack
+  labels:
+    app: comfyui-3d-pack
+spec:
+  accessModes:
+    - ReadWriteMany  # Output needs RWX for multiple pods
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd

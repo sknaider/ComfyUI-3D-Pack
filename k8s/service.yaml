@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: comfyui-3d-pack
+  namespace: comfyui-3d-pack
+  labels:
+    app: comfyui-3d-pack
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8188"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+  ports:
+  - port: 8188
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: comfyui-3d-pack
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comfyui-3d-pack-headless
+  namespace: comfyui-3d-pack
+  labels:
+    app: comfyui-3d-pack
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 8188
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: comfyui-3d-pack

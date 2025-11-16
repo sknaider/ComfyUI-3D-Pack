@@ -176,3 +176,30 @@ cuda_memory_reserved_bytes{{device="{i}"}} {memory_reserved}
 """
 
     return web.Response(text=metrics_text, content_type="text/plain")
+
+
+@server.PromptServer.instance.routes.get("/api/docs")
+async def api_documentation(request):
+    """
+    Swagger UI API documentation
+
+    Returns:
+        HTML page with interactive API documentation
+    """
+    from .openapi import get_openapi_html
+
+    html = get_openapi_html()
+    return web.Response(text=html, content_type="text/html")
+
+
+@server.PromptServer.instance.routes.get("/api/openapi.json")
+async def openapi_spec(request):
+    """
+    OpenAPI specification in JSON format
+
+    Returns:
+        JSON OpenAPI specification
+    """
+    from .openapi import OPENAPI_SPEC
+
+    return web.json_response(OPENAPI_SPEC)

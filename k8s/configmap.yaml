@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: comfyui-config
+  namespace: comfyui-3d-pack
+  labels:
+    app: comfyui-3d-pack
+data:
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  ALLOWED_IPS: "0.0.0.0/0"  # Configure appropriately
+  ALLOWED_ORIGINS: "https://yourdomain.com"
+  MAX_WORKERS: "4"
+  GPU_MEMORY_FRACTION: "0.9"
+  REQUEST_TIMEOUT: "3600"

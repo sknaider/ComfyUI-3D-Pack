@@ -1,0 +1,18 @@
+# ServiceMonitor for Prometheus Operator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: comfyui-3d-pack
+  namespace: comfyui-3d-pack
+  labels:
+    app: comfyui-3d-pack
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
