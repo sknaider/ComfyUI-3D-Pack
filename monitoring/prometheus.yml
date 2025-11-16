@@ -1,0 +1,45 @@
+# Prometheus configuration for ComfyUI-3D-Pack
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'comfyui-3d-pack'
+    environment: 'production'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # ComfyUI-3D-Pack metrics
+  - job_name: 'comfyui-3d-pack'
+    static_configs:
+      - targets: ['comfyui-3d-pack:8188']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node exporter (if running)
+  - job_name: 'node'
+    static_configs:
+      - targets: []
+        # - 'node-exporter:9100'
+
+  # NVIDIA GPU metrics (if nvidia-gpu-exporter is running)
+  - job_name: 'gpu'
+    static_configs:
+      - targets: []
+        # - 'nvidia-gpu-exporter:9445'

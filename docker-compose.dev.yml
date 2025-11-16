@@ -1,0 +1,67 @@
+version: '3.8'
+
+# Development docker-compose override
+# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  comfyui-3d-pack:
+    # Use local code for development
+    build:
+      context: .
+      dockerfile: Dockerfile.enterprise
+      target: runtime
+
+    # Mount source code for hot reload
+    volumes:
+      - ./:/app/custom_nodes/ComfyUI-3D-Pack:ro
+      - ./models:/app/models
+      - ./output:/app/output
+      - ./logs:/app/logs
+      # Cache directories for faster rebuilds
+      - pip-cache:/root/.cache/pip
+      - huggingface-cache:/root/.cache/huggingface
+
+    # Development environment
+    environment:
+      - LOG_FORMAT=text  # Colored logs for development
+      - LOG_LEVEL=DEBUG
+      - ENABLE_AUTH=false  # Disable auth for local dev
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+
+    # Debug port
+    ports:
+      - "8188:8188"
+      - "5678:5678"  # Python debugger port
+
+    # Enable stdin/tty for interactive debugging
+    stdin_open: true
+    tty: true
+
+    # Command override for development
+    command: python main.py --listen 0.0.0.0 --auto-launch
+
+  # Development database (PostgreSQL)
+  postgres:
+    image: postgres:15-alpine
+    container_name: comfyui-postgres-dev
+    environment:
+      - POSTGRES_DB=comfyui_dev
+      - POSTGRES_USER=comfyui
+      - POSTGRES_PASSWORD=devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comfyui"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - comfyui-network
+
+volumes:
+  pip-cache:
+  huggingface-cache:
+  postgres-dev-data:

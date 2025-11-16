@@ -1,0 +1,50 @@
+# Codecov configuration for ComfyUI-3D-Pack
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 5%
+        if_ci_failed: error
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+comment:
+  layout: "reach,diff,flags,tree,footer"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+
+ignore:
+  - "Gen_3D_Modules/**/*"
+  - "MVs_Algorithms/**/*"
+  - "Checkpoints/**/*"
+  - "_Pre_Builds/**/*"
+  - "example_workflows/**/*"
+  - "tests/**/*"
+  - "**/__pycache__/**/*"
+  - "setup.py"
+
+flags:
+  unit:
+    paths:
+      - tests/unit/
+    carryforward: true
+  integration:
+    paths:
+      - tests/integration/
+    carryforward: true
+  security:
+    paths:
+      - tests/unit/test_security.py
+      - webserver/security.py
+    carryforward: true

@@ -1,21 +1,157 @@
+version: '3.8'
+
 services:
-  comfy3d:
+  # Main ComfyUI-3D-Pack service
+  comfyui-3d-pack:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.enterprise
+      args:
+        CUDA_VERSION: 12.4.0-devel
+        PYTHON_VERSION: "3.11"
+    image: comfyui-3d-pack:latest
+    container_name: comfyui-3d-pack
     platform: linux/amd64
-    runtime: nvidia
-    image: comfy3d
-    ports:
-      - "8188:8188"
+
+    # GPU support (new docker-compose syntax)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # Environment
+    env_file:
+      - .env
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
       - COMFYUI_PATH=/app
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENABLE_AUTH=${ENABLE_AUTH:-true}
+
+    # Ports
+    ports:
+      - "8188:8188"
+
+    # Volumes
     volumes:
-      # - ./output:/app/output
+      - ./models:/app/models
+      - ./output:/app/output
+      - ./logs:/app/logs
+      # Legacy model mounts (backward compatibility)
       - ./models/diffusion_pytorch_model.safetensors:/app/models/controlnet/control_unique3d_sd15_tile.safetensors
       - ./models/ip-adapter_sd15.safetensors:/app/models/ipadapter/ip-adapter_sd15.safetensors
       - ./models/RealESRGAN_x4plus.pth:/app/models/upscale_models/RealESRGAN_x4plus.pth
       - ./models/v1-5-pruned-emaonly.ckpt:/app/models/checkpoints/v1-5-pruned-emaonly.ckpt
       - ./models/model.safetensors:/app/models/clip_vision/OpenCLIP-ViT-H-14.safetensors
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Networking
+    networks:
+      - comfyui-network
+
+  # Legacy service name for backward compatibility
+  comfy3d:
+    image: comfyui-3d-pack:latest
+    container_name: comfy3d-legacy
+    platform: linux/amd64
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - COMFYUI_PATH=/app
+    ports:
+      - "8189:8188"
+    volumes:
+      - ./models:/app/models
+      - ./output:/app/output
+    networks:
+      - comfyui-network
+    profiles:
+      - legacy
+
+  # Redis for caching (optional, for future use)
+  redis:
+    image: redis:7-alpine
+    container_name: comfyui-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - comfyui-network
+    profiles:
+      - full
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: comfyui-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks:
+      - comfyui-network
+    profiles:
+      - monitoring
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: comfyui-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    restart: unless-stopped
+    networks:
+      - comfyui-network
+    profiles:
+      - monitoring
+
+networks:
+  comfyui-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data
