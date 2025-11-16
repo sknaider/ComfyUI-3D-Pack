@@ -170,3 +170,117 @@ _Pre_Builds/_Build_Wheels
 _Pre_Builds/_Libs
 
 .idea
+
+# Enterprise additions
+# =====================
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.production
+.env.development
+*.env.backup
+
+# Logs
+logs/
+*.log
+*.log.*
+comfyui-3d-pack.log
+
+# Test artifacts
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.py,cover
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# Profiling
+*.prof
+*.stats
+profile.stats
+
+# Code quality tools
+.ruff_cache/
+.black/
+.isort.cfg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Kubernetes
+k8s/secrets/
+*.secret.yaml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Security
+*.key
+*.pem
+*.cert
+*.crt
+api_keys.txt
+secrets.txt
+
+# CI/CD artifacts
+.github/workflows/*.local.yml
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# Model checkpoints and weights (large files)
+checkpoints/
+models/*.pth
+models/*.bin
+models/*.ckpt
+*.safetensors
+*.pkl
+*.pt
+
+# Output directories
+output/
+outputs/
+results/
+renders/
+
+# Cache directories
+.cache/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini

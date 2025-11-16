@@ -1,8 +1,9 @@
 import os
 import sys
-import folder_paths as comfy_paths
-from pyhocon import ConfigFactory
+from pathlib import Path
 import logging
+
+import folder_paths as comfy_paths
 
 # ROOT_PATH = os.path.join(comfy_paths.get_folder_paths("custom_nodes")[0], "ComfyUI-3D-Pack")
 ROOT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -32,20 +33,39 @@ setup_logger('diffusers_logging', logging.INFO, [logging.INFO, logging.WARNING],
 # Redirect warnings to the logging system
 logging.captureWarnings(True)
 
-conf_path = os.path.join(ROOT_PATH, "Configs/system.conf")
-# Configuration
-f = open(conf_path)
-conf_text = f.read()
-f.close()
-sys_conf = ConfigFactory.parse_string(conf_text)
+# Load enterprise configuration
+from .config import get_config
 
-set_web_conf(sys_conf['web'])
+app_config = get_config(Path(ROOT_PATH))
 
-# Log into huggingface if given user specificed token
-hf_token = sys_conf['huggingface.token']
-if isinstance(hf_token, str) and len(hf_token) > 0:
-    from huggingface_hub import login
-    login(token=hf_token)
+# Configure web server with security settings
+web_conf = {
+    'clients_ip': app_config.security.allowed_ips,
+    'api_keys': app_config.security.api_keys,
+    'enable_auth': app_config.security.enable_auth,
+    'allowed_directories': [
+        app_config.storage.output_base_path,
+        app_config.storage.models_base_path,
+    ],
+    'output_directory': app_config.storage.output_base_path,
+}
+set_web_conf(web_conf)
+
+# Log into huggingface if given user specified token
+hf_token = app_config.huggingface_token
+if hf_token and isinstance(hf_token, str) and len(hf_token) > 0:
+    try:
+        from huggingface_hub import login
+        login(token=hf_token)
+        logging.info("Successfully logged into HuggingFace")
+    except Exception as e:
+        logging.error(f"Failed to login to HuggingFace: {e}")
+
+# Backward compatibility: expose sys_conf for legacy code
+sys_conf = {
+    'huggingface': {'token': hf_token or ""},
+    'web': {'clients_ip': app_config.web_clients_ip}
+}
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}

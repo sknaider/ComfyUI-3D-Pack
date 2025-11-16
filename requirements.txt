@@ -7,6 +7,20 @@ pccm
 PyGithub
 requests
 
+# enterprise: configuration and security
+python-dotenv>=1.0.0
+
+# enterprise: testing and quality
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.1
+
+# enterprise: linting and formatting
+ruff>=0.1.0
+black>=23.0.0
+mypy>=1.5.0
+
 # computational libraries
 numpy
 einops
@@ -16,7 +30,7 @@ opencv-python
 pillow
 nerfacc>=0.5.3
 slangtorch
-cumm==0.7.11 
+cumm==0.7.11
 spconv-cu126
 
 git+https://github.com/EasternJournalist/utils3d.git#egg=utils3d
@@ -43,7 +57,7 @@ imageio-ffmpeg
 matplotlib
 realesrgan
 
-# for process, import & export mesh 
+# for process, import & export mesh
 trimesh
 fast-simplification
 plyfile
