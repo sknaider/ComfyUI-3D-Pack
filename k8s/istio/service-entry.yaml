@@ -1,0 +1,166 @@
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: aws-s3
+  namespace: production
+spec:
+  hosts:
+  - "*.s3.amazonaws.com"
+  - "*.s3.*.amazonaws.com"
+  - "s3.amazonaws.com"
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: google-cloud-storage
+  namespace: production
+spec:
+  hosts:
+  - "storage.googleapis.com"
+  - "*.storage.googleapis.com"
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: azure-blob
+  namespace: production
+spec:
+  hosts:
+  - "*.blob.core.windows.net"
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: minio
+  namespace: production
+spec:
+  hosts:
+  - "minio.local"
+  - "*.minio.local"
+  addresses:
+  - 10.0.0.0/8  # Adjust based on your network
+  ports:
+  - number: 9000
+    name: http
+    protocol: HTTP
+  - number: 9001
+    name: console
+    protocol: HTTP
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: huggingface
+  namespace: production
+spec:
+  hosts:
+  - "huggingface.co"
+  - "*.huggingface.co"
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: docker-hub
+  namespace: production
+spec:
+  hosts:
+  - "registry-1.docker.io"
+  - "production.cloudflare.docker.com"
+  - "*.docker.io"
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+# External database (if using external RDS/Cloud SQL)
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-postgres
+  namespace: production
+spec:
+  hosts:
+  - "postgres.example.com"  # Replace with actual endpoint
+  addresses:
+  - 10.0.0.0/8  # Adjust to your VPC CIDR
+  ports:
+  - number: 5432
+    name: postgres
+    protocol: TCP
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+# External Redis (if using external ElastiCache/Memorystore)
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-redis
+  namespace: production
+spec:
+  hosts:
+  - "redis.example.com"  # Replace with actual endpoint
+  addresses:
+  - 10.0.0.0/8
+  ports:
+  - number: 6379
+    name: redis
+    protocol: TCP
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+# Jaeger collector for tracing
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: jaeger-collector
+  namespace: production
+spec:
+  hosts:
+  - "jaeger-collector.tracing.svc.cluster.local"
+  ports:
+  - number: 9411
+    name: http-zipkin
+    protocol: HTTP
+  - number: 14268
+    name: http-jaeger
+    protocol: HTTP
+  location: MESH_INTERNAL
+  resolution: DNS
+  exportTo:
+  - "*"

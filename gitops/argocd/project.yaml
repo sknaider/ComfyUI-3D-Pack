@@ -1,0 +1,127 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: comfyui
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: ComfyUI-3D-Pack Applications
+
+  # Source repositories allowed for applications
+  sourceRepos:
+    - https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    - https://github.com/MrForExample/ComfyUI-3D-Pack  # Without .git
+    - '*'  # Allow all for development
+
+  # Destination clusters and namespaces
+  destinations:
+    # Local cluster
+    - namespace: '*'
+      server: https://kubernetes.default.svc
+
+    # Multi-region clusters
+    - namespace: production
+      name: us-east-1-cluster
+    - namespace: production
+      name: eu-west-1-cluster
+    - namespace: production
+      name: ap-southeast-1-cluster
+
+    # Staging/dev
+    - namespace: staging
+      server: https://kubernetes.default.svc
+    - namespace: development
+      server: https://kubernetes.default.svc
+
+    # Infrastructure namespaces
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+    - namespace: tracing
+      server: https://kubernetes.default.svc
+    - namespace: istio-system
+      server: https://kubernetes.default.svc
+
+  # Cluster resource whitelist (what can be deployed)
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Namespace resource blacklist (what cannot be deployed)
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+    - group: ''
+      kind: NetworkPolicy  # Managed separately
+
+  # Roles for RBAC
+  roles:
+    # Admin role
+    - name: admin
+      description: Full access to project
+      policies:
+        - p, proj:comfyui:admin, applications, *, comfyui/*, allow
+        - p, proj:comfyui:admin, repositories, *, *, allow
+      groups:
+        - comfyui-admins
+        - platform-team
+
+    # Developer role
+    - name: developer
+      description: Read-only access and sync
+      policies:
+        - p, proj:comfyui:developer, applications, get, comfyui/*, allow
+        - p, proj:comfyui:developer, applications, sync, comfyui/*, allow
+      groups:
+        - comfyui-developers
+
+    # Viewer role
+    - name: viewer
+      description: Read-only access
+      policies:
+        - p, proj:comfyui:viewer, applications, get, comfyui/*, allow
+      groups:
+        - comfyui-viewers
+        - all-engineers
+
+  # Sync windows (when auto-sync is allowed)
+  syncWindows:
+    # Production deployment window
+    - kind: allow
+      schedule: '0 2 * * *'  # 2 AM UTC daily
+      duration: 2h
+      applications:
+        - comfyui-3d-pack-prod
+        - comfyui-3d-pack-eu
+        - comfyui-3d-pack-apac
+      namespaces:
+        - production
+      clusters:
+        - '*'
+      manualSync: true  # Allow manual sync anytime
+
+    # Staging - always allow
+    - kind: allow
+      schedule: '* * * * *'  # Always
+      duration: 24h
+      applications:
+        - comfyui-3d-pack-staging
+      manualSync: true
+
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: ''
+        kind: ConfigMap
+        name: kube-root-ca.crt  # System managed
+
+  # Signature keys for verification
+  signatureKeys:
+    - keyID: # Add GPG key for commit verification
+
+  # Source namespaces (for ApplicationSet)
+  sourceNamespaces:
+    - argocd

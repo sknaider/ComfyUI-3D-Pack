@@ -1,0 +1,214 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comfyui-3d-pack-prod
+  namespace: argocd
+  # Add finalizer to enable cascading deletes
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # Project this app belongs to
+  project: comfyui
+
+  # Source repository
+  source:
+    repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    targetRevision: main
+    path: helm/comfyui-3d-pack
+
+    # Helm specific configuration
+    helm:
+      # Values file to use
+      valueFiles:
+        - values-us-east-1.yaml
+
+      # Override specific values
+      parameters:
+        - name: replicaCount
+          value: "5"
+        - name: image.tag
+          value: "v0.2.0"
+
+      # Release name
+      releaseName: comfyui-prod
+
+  # Destination cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+
+  # Sync policy
+  syncPolicy:
+    automated:
+      # Enable auto-sync
+      prune: true  # Delete resources that are no longer defined
+      selfHeal: true  # Sync when cluster state doesn't match git
+      allowEmpty: false  # Don't delete everything if repo becomes empty
+
+    # Sync options
+    syncOptions:
+      - CreateNamespace=true  # Create namespace if it doesn't exist
+      - PruneLast=true  # Prune resources as last step
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true  # Only apply out-of-sync resources
+
+    # Retry configuration
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Health assessment
+  health:
+    # Custom health checks
+    healthAssessment:
+      interval: 30s
+      timeout: 10s
+
+  # Ignore differences for certain fields
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore replica count (managed by HPA)
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comfyui-3d-pack-staging
+  namespace: argocd
+spec:
+  project: comfyui
+
+  source:
+    repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    targetRevision: develop
+    path: helm/comfyui-3d-pack
+
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: replicaCount
+          value: "2"
+        - name: image.tag
+          value: "latest"
+        - name: environment
+          value: "staging"
+      releaseName: comfyui-staging
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comfyui-monitoring
+  namespace: argocd
+spec:
+  project: comfyui
+
+  source:
+    repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    targetRevision: main
+    path: monitoring
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+# Multi-region deployment - EU
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comfyui-3d-pack-eu
+  namespace: argocd
+  labels:
+    region: eu-west-1
+spec:
+  project: comfyui
+
+  source:
+    repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    targetRevision: main
+    path: helm/comfyui-3d-pack
+
+    helm:
+      valueFiles:
+        - values-eu-west-1.yaml
+      parameters:
+        - name: image.tag
+          value: "v0.2.0"
+      releaseName: comfyui-eu
+
+  destination:
+    # EU cluster (configured in ArgoCD)
+    name: eu-west-1-cluster
+    namespace: production
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+# Multi-region deployment - APAC
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: comfyui-3d-pack-apac
+  namespace: argocd
+  labels:
+    region: ap-southeast-1
+spec:
+  project: comfyui
+
+  source:
+    repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    targetRevision: main
+    path: helm/comfyui-3d-pack
+
+    helm:
+      valueFiles:
+        - values-ap-southeast-1.yaml
+      parameters:
+        - name: image.tag
+          value: "v0.2.0"
+      releaseName: comfyui-apac
+
+  destination:
+    name: ap-southeast-1-cluster
+    namespace: production
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

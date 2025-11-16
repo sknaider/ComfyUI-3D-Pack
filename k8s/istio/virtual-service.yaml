@@ -1,0 +1,163 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: comfyui-vs
+  namespace: production
+spec:
+  hosts:
+  - "api.comfyui.com"
+  - "*.comfyui.com"
+  gateways:
+  - comfyui-gateway
+  http:
+  # Canary deployment route (match header)
+  - match:
+    - headers:
+        canary:
+          exact: "true"
+    route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: canary
+      headers:
+        response:
+          set:
+            x-canary-version: "true"
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: 5xx,reset,connect-failure,refused-stream
+
+  # Beta users route (match user-agent or cookie)
+  - match:
+    - headers:
+        user-group:
+          exact: "beta"
+    route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: v2
+      headers:
+        response:
+          set:
+            x-version: "v2"
+    timeout: 60s
+    retries:
+      attempts: 2
+      perTryTimeout: 20s
+
+  # GPU-intensive endpoints (longer timeout)
+  - match:
+    - uri:
+        prefix: /api/render
+    - uri:
+        prefix: /api/generate
+    route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: v1
+      weight: 100
+    timeout: 300s  # 5 minutes for GPU operations
+    retries:
+      attempts: 1
+      perTryTimeout: 300s
+
+  # Health check endpoints (no retry)
+  - match:
+    - uri:
+        exact: /health
+    - uri:
+        exact: /metrics
+    route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: v1
+    timeout: 5s
+    # No retries for health checks
+
+  # Default route with weighted distribution
+  - route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: v1
+      weight: 90  # 90% to stable version
+      headers:
+        response:
+          set:
+            x-version: "v1"
+    - destination:
+        host: comfyui-3d-pack
+        subset: v2
+      weight: 10  # 10% to new version
+      headers:
+        response:
+          set:
+            x-version: "v2"
+    timeout: 60s
+    retries:
+      attempts: 3
+      perTryTimeout: 20s
+      retryOn: 5xx,reset,connect-failure
+
+  # CORS configuration
+  corsPolicy:
+    allowOrigins:
+    - exact: https://comfyui.com
+    - prefix: https://*.comfyui.com
+    allowMethods:
+    - POST
+    - GET
+    - OPTIONS
+    - PUT
+    - DELETE
+    allowHeaders:
+    - content-type
+    - authorization
+    - x-api-key
+    - x-request-id
+    exposeHeaders:
+    - x-version
+    - x-request-id
+    maxAge: "24h"
+    allowCredentials: true
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: comfyui-vs-fault-injection
+  namespace: production
+  labels:
+    env: testing
+spec:
+  hosts:
+  - comfyui-3d-pack-test
+  http:
+  # Fault injection for testing resilience
+  - match:
+    - headers:
+        x-test-fault:
+          exact: "delay"
+    fault:
+      delay:
+        percentage:
+          value: 50
+        fixedDelay: 5s
+    route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: v1
+
+  - match:
+    - headers:
+        x-test-fault:
+          exact: "abort"
+    fault:
+      abort:
+        percentage:
+          value: 50
+        httpStatus: 503
+    route:
+    - destination:
+        host: comfyui-3d-pack
+        subset: v1

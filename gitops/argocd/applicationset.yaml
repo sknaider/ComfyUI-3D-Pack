@@ -1,0 +1,236 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: comfyui-multi-region
+  namespace: argocd
+spec:
+  # Generators define how applications are created
+  generators:
+    # Git directory generator - deploy to each region with its own values file
+    - git:
+        repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+        revision: main
+        directories:
+          - path: helm/comfyui-3d-pack
+        files:
+          - path: "helm/comfyui-3d-pack/values-*.yaml"
+
+    # Matrix generator - combine git with cluster list
+    - matrix:
+        generators:
+          # List of regions
+          - list:
+              elements:
+                - region: us-east-1
+                  cluster: us-east-1-cluster
+                  server: https://eks-us-east-1.example.com
+                  valuesFile: values-us-east-1.yaml
+                  replicas: "5"
+
+                - region: eu-west-1
+                  cluster: eu-west-1-cluster
+                  server: https://eks-eu-west-1.example.com
+                  valuesFile: values-eu-west-1.yaml
+                  replicas: "4"
+
+                - region: ap-southeast-1
+                  cluster: ap-southeast-1-cluster
+                  server: https://gke-ap-southeast-1.example.com
+                  valuesFile: values-ap-southeast-1.yaml
+                  replicas: "3"
+
+          # Git generator
+          - git:
+              repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+              revision: main
+              directories:
+                - path: helm/comfyui-3d-pack
+
+  # Template for generating applications
+  template:
+    metadata:
+      name: 'comfyui-{{region}}'
+      labels:
+        region: '{{region}}'
+        app: comfyui-3d-pack
+        managed-by: applicationset
+      annotations:
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: comfyui-deployments
+        notifications.argoproj.io/subscribe.on-sync-failed.slack: comfyui-alerts
+
+    spec:
+      project: comfyui
+
+      source:
+        repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+        targetRevision: main
+        path: helm/comfyui-3d-pack
+
+        helm:
+          releaseName: 'comfyui-{{region}}'
+          valueFiles:
+            - '{{valuesFile}}'
+          parameters:
+            - name: replicaCount
+              value: '{{replicas}}'
+            - name: global.region
+              value: '{{region}}'
+
+      destination:
+        name: '{{cluster}}'
+        namespace: production
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - PruneLast=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+
+---
+# ApplicationSet for per-environment deployments
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: comfyui-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: production
+            branch: main
+            namespace: production
+            replicas: "5"
+            resources:
+              cpu: "4000m"
+              memory: "16Gi"
+
+          - env: staging
+            branch: develop
+            namespace: staging
+            replicas: "2"
+            resources:
+              cpu: "2000m"
+              memory: "8Gi"
+
+          - env: development
+            branch: develop
+            namespace: development
+            replicas: "1"
+            resources:
+              cpu: "1000m"
+              memory: "4Gi"
+
+  template:
+    metadata:
+      name: 'comfyui-{{env}}'
+      labels:
+        environment: '{{env}}'
+
+    spec:
+      project: comfyui
+
+      source:
+        repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+        targetRevision: '{{branch}}'
+        path: helm/comfyui-3d-pack
+
+        helm:
+          releaseName: 'comfyui-{{env}}'
+          valueFiles:
+            - values.yaml
+          parameters:
+            - name: replicaCount
+              value: '{{replicas}}'
+            - name: resources.requests.cpu
+              value: '{{resources.cpu}}'
+            - name: resources.requests.memory
+              value: '{{resources.memory}}'
+            - name: environment
+              value: '{{env}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: '{{env}}' != 'production'  # Manual prune for prod
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# Pull Request generator for preview environments
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: comfyui-pr-preview
+  namespace: argocd
+spec:
+  generators:
+    - pullRequest:
+        github:
+          owner: MrForExample
+          repo: ComfyUI-3D-Pack
+          tokenRef:
+            secretName: github-token
+            key: token
+          labels:
+            - preview  # Only PRs with 'preview' label
+
+  template:
+    metadata:
+      name: 'comfyui-pr-{{number}}'
+      labels:
+        pr: '{{number}}'
+        branch: '{{branch}}'
+
+    spec:
+      project: comfyui
+
+      source:
+        repoURL: https://github.com/MrForExample/ComfyUI-3D-Pack.git
+        targetRevision: '{{head_sha}}'
+        path: helm/comfyui-3d-pack
+
+        helm:
+          releaseName: 'comfyui-pr-{{number}}'
+          valueFiles:
+            - values.yaml
+          parameters:
+            - name: replicaCount
+              value: "1"
+            - name: ingress.hostname
+              value: 'pr-{{number}}.preview.comfyui.com'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'pr-{{number}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+      # Auto-delete after PR is closed
+      info:
+        - name: PR
+          value: 'https://github.com/MrForExample/ComfyUI-3D-Pack/pull/{{number}}'

@@ -1,0 +1,72 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: comfyui-gateway
+  namespace: production
+spec:
+  selector:
+    istio: ingressgateway # Use Istio default gateway
+  servers:
+  # HTTP port
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "api.comfyui.com"
+    - "*.comfyui.com"
+    # Redirect HTTP to HTTPS
+    tls:
+      httpsRedirect: true
+
+  # HTTPS port
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - "api.comfyui.com"
+    - "*.comfyui.com"
+    tls:
+      mode: SIMPLE
+      credentialName: comfyui-tls-cert # Secret name for TLS certificate
+      minProtocolVersion: TLSV1_2
+      cipherSuites:
+      - ECDHE-ECDSA-AES128-GCM-SHA256
+      - ECDHE-RSA-AES128-GCM-SHA256
+      - ECDHE-ECDSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES256-GCM-SHA384
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: comfyui-gateway-regional
+  namespace: production
+  labels:
+    region: us-east-1
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  # Regional HTTP endpoint
+  - port:
+      number: 80
+      name: http-regional
+      protocol: HTTP
+    hosts:
+    - "api-us-east.comfyui.com"
+    tls:
+      httpsRedirect: true
+
+  # Regional HTTPS endpoint
+  - port:
+      number: 443
+      name: https-regional
+      protocol: HTTPS
+    hosts:
+    - "api-us-east.comfyui.com"
+    tls:
+      mode: SIMPLE
+      credentialName: comfyui-tls-cert
+      minProtocolVersion: TLSV1_2

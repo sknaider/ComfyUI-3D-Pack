@@ -1,0 +1,240 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tracing
+  labels:
+    istio-injection: enabled
+
+---
+# Jaeger Operator CRD
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: jaeger
+  namespace: tracing
+spec:
+  strategy: production  # or 'allInOne' for dev
+
+  # Storage configuration
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: http://elasticsearch:9200
+        index-prefix: jaeger
+    esIndexCleaner:
+      enabled: true
+      numberOfDays: 7
+      schedule: "55 23 * * *"
+
+  # Collector configuration
+  collector:
+    replicas: 3
+    maxReplicas: 10
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscale: true
+
+  # Query/UI configuration
+  query:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    options:
+      query:
+        base-path: /jaeger
+
+  # Agent configuration (deployed as sidecar via Istio)
+  agent:
+    strategy: DaemonSet
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - jaeger.comfyui.com
+    tls:
+      - secretName: jaeger-tls
+        hosts:
+          - jaeger.comfyui.com
+
+---
+# Elasticsearch for Jaeger storage (simplified deployment)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: tracing
+spec:
+  serviceName: elasticsearch
+  replicas: 3
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      containers:
+      - name: elasticsearch
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        ports:
+        - containerPort: 9200
+          name: http
+        - containerPort: 9300
+          name: transport
+        env:
+        - name: cluster.name
+          value: jaeger-cluster
+        - name: node.name
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: discovery.seed_hosts
+          value: "elasticsearch-0.elasticsearch,elasticsearch-1.elasticsearch,elasticsearch-2.elasticsearch"
+        - name: cluster.initial_master_nodes
+          value: "elasticsearch-0,elasticsearch-1,elasticsearch-2"
+        - name: ES_JAVA_OPTS
+          value: "-Xms512m -Xmx512m"
+        - name: xpack.security.enabled
+          value: "false"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/elasticsearch/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: gp3-encrypted
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: tracing
+spec:
+  clusterIP: None
+  selector:
+    app: elasticsearch
+  ports:
+  - port: 9200
+    name: http
+  - port: 9300
+    name: transport
+
+---
+# Istio telemetry configuration for Jaeger
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: jaeger-tracing
+  namespace: istio-system
+spec:
+  # Enable tracing for all services
+  tracing:
+  - providers:
+    - name: jaeger
+    randomSamplingPercentage: 100.0  # Sample 100% in production, reduce for cost
+    customTags:
+      cluster_id:
+        literal:
+          value: "comfyui-prod"
+      region:
+        environment:
+          name: AWS_REGION
+          defaultValue: "us-east-1"
+
+---
+# Mesh config for Jaeger
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio-jaeger
+  namespace: istio-system
+data:
+  mesh: |
+    defaultConfig:
+      tracing:
+        zipkin:
+          address: jaeger-collector.tracing.svc.cluster.local:9411
+        sampling: 100.0
+        custom_tags:
+          app_version:
+            literal:
+              value: "v0.2.0"
+          environment:
+            literal:
+              value: "production"
+
+---
+# RBAC for Jaeger
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jaeger
+  namespace: tracing
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jaeger
+rules:
+- apiGroups: [""]
+  resources:
+  - pods
+  - services
+  - endpoints
+  - namespaces
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - replicasets
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jaeger
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jaeger
+subjects:
+- kind: ServiceAccount
+  name: jaeger
+  namespace: tracing

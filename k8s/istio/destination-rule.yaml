@@ -1,0 +1,139 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: comfyui-dr
+  namespace: production
+spec:
+  host: comfyui-3d-pack
+
+  # Traffic policy for all subsets
+  trafficPolicy:
+    # Load balancing strategy
+    loadBalancer:
+      consistentHash:
+        httpHeaderName: x-session-id  # Session affinity based on header
+
+    # Connection pool settings
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+        connectTimeout: 30s
+        tcpKeepalive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+        idleTimeout: 60s
+        h2UpgradePolicy: UPGRADE
+
+    # Outlier detection (circuit breaking)
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+      consecutiveGatewayErrors: 5
+      splitExternalLocalOriginErrors: true
+
+  # Subsets for different versions/deployments
+  subsets:
+  # Stable version (v1)
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      loadBalancer:
+        simple: LEAST_REQUEST  # Use least-loaded instance
+
+  # New version (v2) for gradual rollout
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      loadBalancer:
+        simple: ROUND_ROBIN
+
+  # Canary deployment
+  - name: canary
+    labels:
+      version: canary
+    trafficPolicy:
+      loadBalancer:
+        simple: RANDOM
+      # More conservative settings for canary
+      connectionPool:
+        tcp:
+          maxConnections: 500
+        http:
+          http1MaxPendingRequests: 50
+          http2MaxRequests: 500
+      outlierDetection:
+        consecutive5xxErrors: 3  # More sensitive
+        interval: 15s
+        baseEjectionTime: 60s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: comfyui-redis-dr
+  namespace: production
+spec:
+  host: redis-master
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_CONN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 5s
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: comfyui-postgresql-dr
+  namespace: production
+spec:
+  host: postgresql
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_CONN
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 10s
+      http:
+        http1MaxPendingRequests: 10
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 60s
+
+---
+# Destination rule for external S3 traffic
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: s3-dr
+  namespace: production
+spec:
+  host: "*.s3.amazonaws.com"
+  trafficPolicy:
+    tls:
+      mode: SIMPLE  # Enable TLS for S3
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        http2MaxRequests: 1000
+        maxRetries: 3

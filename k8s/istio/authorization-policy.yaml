@@ -1,0 +1,157 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingress
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: ALLOW
+  rules:
+  # Allow traffic from Istio ingress gateway
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        ports: ["8188"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-monitoring
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: ALLOW
+  rules:
+  # Allow Prometheus to scrape metrics
+  - from:
+    - source:
+        namespaces: ["monitoring", "istio-system"]
+    to:
+    - operation:
+        methods: ["GET"]
+        ports: ["9090"]
+        paths: ["/metrics"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-health-checks
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: ALLOW
+  rules:
+  # Allow health checks from anywhere (needed for k8s probes)
+  - to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/health", "/healthz", "/ready"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-redis
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: ALLOW
+  rules:
+  # Allow ComfyUI to access Redis
+  - to:
+    - operation:
+        hosts: ["redis-master.production.svc.cluster.local"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-postgresql
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: ALLOW
+  rules:
+  # Allow ComfyUI to access PostgreSQL
+  - to:
+    - operation:
+        hosts: ["postgresql.production.svc.cluster.local"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-external-egress
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: DENY
+  rules:
+  # Deny access to cluster metadata endpoint (security)
+  - to:
+    - operation:
+        hosts: ["169.254.169.254"]
+        ports: ["80", "443"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: api-key-required
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: DENY
+  rules:
+  # Deny requests to /api/* without API key header
+  - from:
+    - source:
+        notPrincipals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+    to:
+    - operation:
+        paths: ["/api/*"]
+    when:
+    - key: request.headers[x-api-key]
+      notValues: ["*"]  # Requires any value, actual validation in app
+
+---
+# Rate limiting policy (requires Envoy rate limit service)
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: rate-limit-public-api
+  namespace: production
+  annotations:
+    # This is a placeholder for rate limiting
+    # Actual rate limiting requires Envoy rate limit service
+    ratelimit.istio.io/enabled: "true"
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  action: CUSTOM
+  provider:
+    name: envoy-ratelimit
+  rules:
+  - to:
+    - operation:
+        paths: ["/api/*"]

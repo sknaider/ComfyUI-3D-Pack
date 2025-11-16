@@ -1,0 +1,39 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: production
+spec:
+  # Enforce mTLS for all workloads in the namespace
+  mtls:
+    mode: STRICT
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: comfyui-mtls
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: comfyui-3d-pack
+  mtls:
+    mode: STRICT
+  # Port-level mTLS settings
+  portLevelMtls:
+    8188:  # Application port
+      mode: STRICT
+    9090:  # Metrics port - can be permissive for Prometheus
+      mode: PERMISSIVE
+
+---
+# Global mesh-wide mTLS policy
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-mtls-mesh
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
