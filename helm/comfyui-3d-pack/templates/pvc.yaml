@@ -1,0 +1,47 @@
+{{- if and .Values.persistence.models.enabled (not .Values.persistence.models.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-models" (include "comfyui-3d-pack.fullname" .) }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "comfyui-3d-pack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.models.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.models.size | quote }}
+  {{- if .Values.persistence.models.storageClass }}
+  {{- if (eq "-" .Values.persistence.models.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.persistence.models.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+---
+{{- if and .Values.persistence.output.enabled (not .Values.persistence.output.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-output" (include "comfyui-3d-pack.fullname" .) }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "comfyui-3d-pack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.output.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.output.size | quote }}
+  {{- if .Values.persistence.output.storageClass }}
+  {{- if (eq "-" .Values.persistence.output.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.persistence.output.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}

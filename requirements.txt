@@ -16,6 +16,12 @@ pytest-cov>=4.1.0
 pytest-asyncio>=0.21.0
 pytest-mock>=3.11.1
 
+# enterprise: cloud storage (optional)
+boto3>=1.28.0  # AWS S3
+minio>=7.2.0  # MinIO
+google-cloud-storage>=2.10.0  # Google Cloud Storage
+azure-storage-blob>=12.19.0  # Azure Blob Storage
+
 # enterprise: linting and formatting
 ruff>=0.1.0
 black>=23.0.0

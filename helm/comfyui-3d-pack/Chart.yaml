@@ -1,0 +1,33 @@
+apiVersion: v2
+name: comfyui-3d-pack
+description: Enterprise-grade 3D generation with 21+ state-of-the-art models
+type: application
+version: 0.1.7
+appVersion: "0.1.7"
+
+keywords:
+  - 3d-generation
+  - machine-learning
+  - gpu
+  - comfyui
+  - ai
+
+home: https://github.com/MrForExample/ComfyUI-3D-Pack
+sources:
+  - https://github.com/MrForExample/ComfyUI-3D-Pack
+
+maintainers:
+  - name: ComfyUI-3D-Pack Team
+    url: https://github.com/MrForExample/ComfyUI-3D-Pack
+
+icon: https://raw.githubusercontent.com/MrForExample/ComfyUI-3D-Pack/main/web/icon.png
+
+dependencies:
+  - name: redis
+    version: "17.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: postgresql
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

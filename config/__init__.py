@@ -40,6 +40,23 @@ class StorageConfig:
 
 
 @dataclass
+class CloudStorageConfig:
+    """Cloud object storage configuration"""
+    enabled: bool = False
+    backend_type: str = "s3"  # s3, minio, gcs, azure
+    endpoint: Optional[str] = None
+    bucket: str = "comfyui-3d-pack"
+    region: str = "us-east-1"
+    access_key: Optional[str] = None
+    secret_key: Optional[str] = None
+    use_ssl: bool = True
+    # Provider-specific options
+    connection_string: Optional[str] = None  # Azure
+    project_id: Optional[str] = None  # GCS
+    credentials_path: Optional[str] = None  # GCS
+
+
+@dataclass
 class PerformanceConfig:
     """Performance tuning configuration"""
     max_workers: int = 4
@@ -60,6 +77,7 @@ class AppConfig:
     huggingface_token: Optional[str] = None
     security: SecurityConfig = field(default_factory=SecurityConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    cloud_storage: CloudStorageConfig = field(default_factory=CloudStorageConfig)
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
@@ -106,6 +124,19 @@ class ConfigLoader:
             storage=StorageConfig(
                 models_base_path=Path(os.getenv("MODELS_BASE_PATH", "/tmp/models")),
                 output_base_path=Path(os.getenv("OUTPUT_BASE_PATH", "/tmp/output")),
+            ),
+            cloud_storage=CloudStorageConfig(
+                enabled=os.getenv("CLOUD_STORAGE_ENABLED", "false").lower() == "true",
+                backend_type=os.getenv("CLOUD_STORAGE_TYPE", "s3"),
+                endpoint=os.getenv("CLOUD_STORAGE_ENDPOINT"),
+                bucket=os.getenv("CLOUD_STORAGE_BUCKET", "comfyui-3d-pack"),
+                region=os.getenv("CLOUD_STORAGE_REGION", "us-east-1"),
+                access_key=os.getenv("CLOUD_STORAGE_ACCESS_KEY") or os.getenv("AWS_ACCESS_KEY_ID"),
+                secret_key=os.getenv("CLOUD_STORAGE_SECRET_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY"),
+                use_ssl=os.getenv("CLOUD_STORAGE_USE_SSL", "true").lower() == "true",
+                connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
+                project_id=os.getenv("GCP_PROJECT_ID"),
+                credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
             ),
             performance=PerformanceConfig(
                 max_workers=int(os.getenv("MAX_WORKERS", "4")),

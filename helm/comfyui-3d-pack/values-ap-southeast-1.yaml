@@ -1,0 +1,201 @@
+# Helm Values for Asia Pacific Southeast 1 (Singapore) Region
+# AWS Region: ap-southeast-1
+# GCP Region: asia-southeast1
+# Azure Region: southeastasia
+
+# Global overrides for Asia Pacific region
+global:
+  region: ap-southeast-1
+  storageClass: gp3-encrypted
+
+# Replica configuration for APAC market
+replicaCount: 3
+
+image:
+  registry: docker.io
+  repository: comfyui-3d-pack
+  tag: "0.1.7"
+  pullPolicy: IfNotPresent
+
+# Update strategy
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Asia Pacific specific configuration
+config:
+  region: ap-southeast-1
+  logLevel: INFO
+  logFormat: json
+  enableAuth: true
+  maxWorkers: 4
+  gpuMemoryFraction: 0.9
+  requestTimeout: 3600
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8188
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+  sessionAffinity: ClientIP
+
+# Ingress with AWS ALB for APAC
+ingress:
+  enabled: true
+  ingressClassName: alb
+  hostname: api-apac.comfyui.com
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-southeast-1:ACCOUNT_ID:certificate/CERT_ID
+    # Regional optimization
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30
+  tls: true
+
+# Resource allocation for APAC region
+resources:
+  limits:
+    memory: 20Gi
+    cpu: 5000m
+    nvidia.com/gpu: "1"
+  requests:
+    memory: 12Gi
+    cpu: 3000m
+    nvidia.com/gpu: "1"
+
+# Autoscaling for APAC hours (GMT+8)
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetCPU: 70
+  targetMemory: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+
+# Persistence for APAC region
+persistence:
+  models:
+    enabled: true
+    storageClass: gp3-encrypted
+    accessMode: ReadOnlyMany
+    size: 150Gi
+  output:
+    enabled: true
+    storageClass: gp3-encrypted
+    accessMode: ReadWriteMany
+    size: 80Gi
+
+# Object Storage - S3 in Asia Pacific
+objectStorage:
+  enabled: true
+  type: s3
+  endpoint: s3.ap-southeast-1.amazonaws.com
+  bucket: comfyui-3d-pack-ap-southeast-1
+  region: ap-southeast-1
+
+# Redis for caching
+redis:
+  enabled: true
+  architecture: replicaset
+  auth:
+    enabled: true
+  replica:
+    replicaCount: 2
+  persistence:
+    size: 8Gi
+    storageClass: gp3-encrypted
+
+# PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    username: comfyui
+    database: comfyui
+  primary:
+    persistence:
+      size: 40Gi
+      storageClass: gp3-encrypted
+  replication:
+    enabled: true
+    readReplicas: 1
+
+# Metrics and monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    namespace: monitoring
+
+# Pod topology spread across APAC zones
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: comfyui-3d-pack
+
+# Node affinity for APAC GPU nodes
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - ap-southeast-1a
+                - ap-southeast-1b
+                - ap-southeast-1c
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Security context
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+  runAsNonRoot: true
+
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# Service account with IRSA
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/comfyui-3d-pack-ap-southeast-1
+
+# Network policies
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+# Regional labels
+commonLabels:
+  region: ap-southeast-1
+  market: apac
+  environment: production

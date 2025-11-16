@@ -1,0 +1,336 @@
+# Default values for comfyui-3d-pack
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+## @section Global parameters
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Global Docker registry secret names as an array
+## @param global.storageClass Global StorageClass for Persistent Volume(s)
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+## @section Common parameters
+## @param nameOverride String to partially override common.names.fullname
+## @param fullnameOverride String to fully override common.names.fullname
+## @param commonLabels Labels to add to all deployed objects
+## @param commonAnnotations Annotations to add to all deployed objects
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
+## @section ComfyUI-3D-Pack Image parameters
+## @param image.registry ComfyUI-3D-Pack image registry
+## @param image.repository ComfyUI-3D-Pack image repository
+## @param image.tag ComfyUI-3D-Pack image tag (immutable tags are recommended)
+## @param image.pullPolicy ComfyUI-3D-Pack image pull policy
+## @param image.pullSecrets ComfyUI-3D-Pack image pull secrets
+
+image:
+  registry: docker.io
+  repository: comfyui-3d-pack
+  tag: "0.1.7"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+## @section Deployment parameters
+## @param replicaCount Number of ComfyUI-3D-Pack replicas to deploy
+## @param updateStrategy.type ComfyUI-3D-Pack deployment strategy type
+## @param podAnnotations Annotations for ComfyUI-3D-Pack pods
+## @param podLabels Extra labels for ComfyUI-3D-Pack pods
+
+replicaCount: 2
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8188"
+  prometheus.io/path: "/metrics"
+
+podLabels: {}
+
+## @section Security parameters
+## @param podSecurityContext.enabled Enabled ComfyUI-3D-Pack pods' Security Context
+## @param podSecurityContext.fsGroup Set ComfyUI-3D-Pack pod's Security Context fsGroup
+## @param containerSecurityContext.enabled Enabled ComfyUI-3D-Pack containers' Security Context
+## @param containerSecurityContext.runAsUser Set ComfyUI-3D-Pack containers' Security Context runAsUser
+## @param containerSecurityContext.runAsNonRoot Set ComfyUI-3D-Pack containers' Security Context runAsNonRoot
+
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+  runAsUser: 1001
+  runAsNonRoot: true
+
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+## @section Application parameters
+## @param config.logLevel Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+## @param config.logFormat Log format (json, text)
+## @param config.enableAuth Enable API key authentication
+## @param config.maxWorkers Maximum worker processes
+## @param config.gpuMemoryFraction GPU memory fraction to use (0.0-1.0)
+## @param config.requestTimeout Request timeout in seconds
+
+config:
+  logLevel: INFO
+  logFormat: json
+  enableAuth: true
+  maxWorkers: 4
+  gpuMemoryFraction: 0.9
+  requestTimeout: 3600
+  allowedOrigins: ""
+
+## @section Secrets
+## @param secrets.huggingfaceToken HuggingFace API token
+## @param secrets.apiKeys Comma-separated list of API keys
+## @param secrets.existingSecret Name of existing secret to use
+
+secrets:
+  huggingfaceToken: ""
+  apiKeys: ""
+  existingSecret: ""
+
+## @section Service parameters
+## @param service.type ComfyUI-3D-Pack service type
+## @param service.port ComfyUI-3D-Pack service HTTP port
+## @param service.sessionAffinity Session Affinity for Kubernetes service
+## @param service.sessionAffinityConfig Session Affinity configuration
+
+service:
+  type: ClusterIP
+  port: 8188
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+  annotations: {}
+
+## @section Ingress parameters
+## @param ingress.enabled Enable ingress record generation for ComfyUI-3D-Pack
+## @param ingress.ingressClassName IngressClass that will be used to implement the Ingress
+## @param ingress.hostname Default host for the ingress record
+## @param ingress.path Default path for the ingress record
+## @param ingress.annotations Additional annotations for the Ingress resource
+## @param ingress.tls Enable TLS configuration for the host defined at `ingress.hostname`
+
+ingress:
+  enabled: false
+  ingressClassName: nginx
+  hostname: comfyui-3d.local
+  path: /
+  pathType: Prefix
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+  tls: true
+  tlsSecret: comfyui-3d-pack-tls
+
+## @section Resource requests and limits
+## @param resources.limits The resources limits for the ComfyUI-3D-Pack containers
+## @param resources.requests The requested resources for the ComfyUI-3D-Pack containers
+
+resources:
+  limits:
+    memory: 16Gi
+    cpu: 4000m
+    nvidia.com/gpu: "1"
+  requests:
+    memory: 8Gi
+    cpu: 2000m
+    nvidia.com/gpu: "1"
+
+## @section Autoscaling parameters
+## @param autoscaling.enabled Enable Horizontal POD autoscaling for ComfyUI-3D-Pack
+## @param autoscaling.minReplicas Minimum number of ComfyUI-3D-Pack replicas
+## @param autoscaling.maxReplicas Maximum number of ComfyUI-3D-Pack replicas
+## @param autoscaling.targetCPU Target CPU utilization percentage
+## @param autoscaling.targetMemory Target Memory utilization percentage
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPU: 70
+  targetMemory: 80
+
+## @section Persistence parameters
+## @param persistence.models.enabled Enable persistence for models using Persistent Volume Claims
+## @param persistence.models.storageClass Persistent Volume storage class
+## @param persistence.models.accessMode Persistent Volume access mode
+## @param persistence.models.size Persistent Volume size
+## @param persistence.output.enabled Enable persistence for output
+## @param persistence.output.size Output Persistent Volume size
+
+persistence:
+  models:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadOnlyMany
+    size: 100Gi
+    existingClaim: ""
+  output:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 50Gi
+    existingClaim: ""
+
+## @section Health check parameters
+## @param livenessProbe.enabled Enable livenessProbe on ComfyUI-3D-Pack containers
+## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+## @param readinessProbe.enabled Enable readinessProbe on ComfyUI-3D-Pack containers
+## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+## @param startupProbe.enabled Enable startupProbe on ComfyUI-3D-Pack containers
+
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+## @section Node selection parameters
+## @param nodeSelector Node labels for ComfyUI-3D-Pack pods assignment
+## @param tolerations Tolerations for ComfyUI-3D-Pack pods assignment
+## @param affinity Affinity for ComfyUI-3D-Pack pods assignment
+
+nodeSelector:
+  nvidia.com/gpu.present: "true"
+
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - comfyui-3d-pack
+          topologyKey: kubernetes.io/hostname
+
+## @section Service Account parameters
+## @param serviceAccount.create Specifies whether a ServiceAccount should be created
+## @param serviceAccount.name The name of the ServiceAccount to use
+## @param serviceAccount.annotations Additional Service Account annotations
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+## @section Monitoring parameters
+## @param metrics.enabled Start a sidecar prometheus exporter or enable ServiceMonitor
+## @param metrics.serviceMonitor.enabled Create ServiceMonitor resource(s) for scraping metrics using PrometheusOperator
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+
+## @section Redis subchart parameters (optional)
+## @param redis.enabled Deploy Redis subchart
+## @param redis.auth.enabled Enable Redis authentication
+## @param redis.architecture Redis architecture (standalone or replication)
+
+redis:
+  enabled: false
+  auth:
+    enabled: true
+    password: ""
+  architecture: standalone
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+## @section PostgreSQL subchart parameters (optional)
+## @param postgresql.enabled Deploy PostgreSQL subchart
+## @param postgresql.auth.username PostgreSQL username
+## @param postgresql.auth.password PostgreSQL password
+## @param postgresql.auth.database PostgreSQL database
+
+postgresql:
+  enabled: false
+  auth:
+    username: comfyui
+    password: ""
+    database: comfyui_db
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+## @section Object Storage parameters
+## @param objectStorage.enabled Enable object storage (S3/MinIO)
+## @param objectStorage.type Object storage type (s3, minio, gcs, azure)
+## @param objectStorage.endpoint Object storage endpoint
+## @param objectStorage.bucket Object storage bucket name
+## @param objectStorage.accessKey Object storage access key
+## @param objectStorage.secretKey Object storage secret key
+
+objectStorage:
+  enabled: false
+  type: s3
+  endpoint: ""
+  bucket: "comfyui-3d-pack"
+  region: "us-east-1"
+  accessKey: ""
+  secretKey: ""
+  existingSecret: ""

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "comfyui-3d-pack.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "comfyui-3d-pack.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  LOG_FORMAT: {{ .Values.config.logFormat | quote }}
+  ENABLE_AUTH: {{ .Values.config.enableAuth | quote }}
+  MAX_WORKERS: {{ .Values.config.maxWorkers | quote }}
+  GPU_MEMORY_FRACTION: {{ .Values.config.gpuMemoryFraction | quote }}
+  REQUEST_TIMEOUT: {{ .Values.config.requestTimeout | quote }}
+  {{- if .Values.config.allowedOrigins }}
+  ALLOWED_ORIGINS: {{ .Values.config.allowedOrigins | quote }}
+  {{- end }}

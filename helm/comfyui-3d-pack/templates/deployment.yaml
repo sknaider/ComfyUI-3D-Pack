@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "comfyui-3d-pack.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "comfyui-3d-pack.labels" . | nindent 4 }}
+    {{- if .Values.commonLabels }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- if .Values.updateStrategy }}
+  strategy: {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "comfyui-3d-pack.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- if .Values.podAnnotations }}
+        {{- include "common.tplvalues.render" (dict "value" .Values.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "comfyui-3d-pack.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+        {{- include "common.tplvalues.render" (dict "value" .Values.podLabels "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "comfyui-3d-pack.serviceAccountName" . }}
+      {{- if .Values.podSecurityContext.enabled }}
+      securityContext: {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: comfyui-3d-pack
+        image: {{ include "comfyui-3d-pack.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- if .Values.containerSecurityContext.enabled }}
+        securityContext: {{- omit .Values.containerSecurityContext "enabled" | toYaml | nindent 10 }}
+        {{- end }}
+        env:
+        - name: LOG_LEVEL
+          value: {{ .Values.config.logLevel | quote }}
+        - name: LOG_FORMAT
+          value: {{ .Values.config.logFormat | quote }}
+        - name: ENABLE_AUTH
+          value: {{ .Values.config.enableAuth | quote }}
+        - name: MAX_WORKERS
+          value: {{ .Values.config.maxWorkers | quote }}
+        - name: GPU_MEMORY_FRACTION
+          value: {{ .Values.config.gpuMemoryFraction | quote }}
+        - name: REQUEST_TIMEOUT
+          value: {{ .Values.config.requestTimeout | quote }}
+        {{- if .Values.config.allowedOrigins }}
+        - name: ALLOWED_ORIGINS
+          value: {{ .Values.config.allowedOrigins | quote }}
+        {{- end }}
+        - name: HUGGINGFACE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "comfyui-3d-pack.secretName" . }}
+              key: huggingface-token
+        - name: API_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "comfyui-3d-pack.secretName" . }}
+              key: api-keys
+        {{- if .Values.objectStorage.enabled }}
+        - name: OBJECT_STORAGE_ENABLED
+          value: "true"
+        - name: OBJECT_STORAGE_TYPE
+          value: {{ .Values.objectStorage.type | quote }}
+        - name: OBJECT_STORAGE_ENDPOINT
+          value: {{ .Values.objectStorage.endpoint | quote }}
+        - name: OBJECT_STORAGE_BUCKET
+          value: {{ .Values.objectStorage.bucket | quote }}
+        - name: OBJECT_STORAGE_REGION
+          value: {{ .Values.objectStorage.region | quote }}
+        - name: OBJECT_STORAGE_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "comfyui-3d-pack.objectStorageSecretName" . }}
+              key: access-key
+        - name: OBJECT_STORAGE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "comfyui-3d-pack.objectStorageSecretName" . }}
+              key: secret-key
+        {{- end }}
+        {{- if .Values.redis.enabled }}
+        - name: REDIS_URL
+          value: "redis://{{ include "comfyui-3d-pack.redis.fullname" . }}-master:6379/0"
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: 8188
+          protocol: TCP
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe: {{- omit .Values.livenessProbe "enabled" | toYaml | nindent 10 }}
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe: {{- omit .Values.readinessProbe "enabled" | toYaml | nindent 10 }}
+        {{- end }}
+        {{- if .Values.startupProbe.enabled }}
+        startupProbe: {{- omit .Values.startupProbe "enabled" | toYaml | nindent 10 }}
+        {{- end }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
+        volumeMounts:
+        {{- if .Values.persistence.models.enabled }}
+        - name: models
+          mountPath: /app/models
+          readOnly: true
+        {{- end }}
+        {{- if .Values.persistence.output.enabled }}
+        - name: output
+          mountPath: /app/output
+        {{- end }}
+        - name: logs
+          mountPath: /app/logs
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      {{- if .Values.persistence.models.enabled }}
+      - name: models
+        persistentVolumeClaim:
+          claimName: {{ include "comfyui-3d-pack.models.pvcName" . }}
+      {{- end }}
+      {{- if .Values.persistence.output.enabled }}
+      - name: output
+        persistentVolumeClaim:
+          claimName: {{ include "comfyui-3d-pack.output.pvcName" . }}
+      {{- end }}
+      - name: logs
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- include "common.tplvalues.render" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations: {{- include "common.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- end }}
